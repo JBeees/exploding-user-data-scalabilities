@@ -7,6 +7,8 @@ loadtest/user_ids.json
 loadtest/results/
 loadtest/*.json
 loadtest/*.csv
+loadtest/LAPORAN_TEMPLATE.md
+loadtest/result.txt
 
 api/server
 api/*.exe
