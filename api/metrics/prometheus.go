@@ -68,4 +68,9 @@ var (
 		Name: "transactions_created_total",
 		Help: "Total transactions created",
 	}, []string{"type", "status"})
+
+	IdempotencyHitsTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "idempotency_hits_total",
+		Help: "Total duplicate transactions rejected by idempotency key",
+	})
 )

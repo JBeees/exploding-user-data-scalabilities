@@ -81,6 +81,11 @@ func UserBalanceKey(id string) string {
 	return fmt.Sprintf("user:balance:%s", id)
 }
 
+// IdempotencyKey returns cache key for idempotency checks
+func IdempotencyKey(userID, key string) string {
+	return fmt.Sprintf("idempotency:%s:%s", userID, key)
+}
+
 func Close() {
 	if Client != nil {
 		Client.Close()
