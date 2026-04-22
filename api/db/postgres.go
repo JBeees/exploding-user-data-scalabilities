@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -20,8 +21,8 @@ type Database struct {
 var DB *Database
 
 func Init() *Database {
-	writeDB := connect(os.Getenv("DB_WRITE_HOST"), os.Getenv("DB_WRITE_PORT"))
-	readDB := connect(os.Getenv("DB_READ_HOST"), os.Getenv("DB_READ_PORT"))
+	writeDB := connect(strings.TrimSpace(os.Getenv("DB_WRITE_HOST")), strings.TrimSpace(os.Getenv("DB_WRITE_PORT")))
+	readDB := connect(strings.TrimSpace(os.Getenv("DB_READ_HOST")), strings.TrimSpace(os.Getenv("DB_READ_PORT")))
 
 	DB = &Database{
 		Write: writeDB,
@@ -36,9 +37,9 @@ func connect(host, port string) *sql.DB {
 	dsn := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		host, port,
-		os.Getenv("DB_USER"),
-		os.Getenv("DB_PASSWORD"),
-		os.Getenv("DB_NAME"),
+		strings.TrimSpace(os.Getenv("DB_USER")),
+		strings.TrimSpace(os.Getenv("DB_PASSWORD")),
+		strings.TrimSpace(os.Getenv("DB_NAME")),
 	)
 
 	database, err := sql.Open("postgres", dsn)
@@ -72,7 +73,7 @@ func Close() {
 
 func getEnv(key, def string) string {
 	if v := os.Getenv(key); v != "" {
-		return v
+		return strings.TrimSpace(v)
 	}
 	return def
 }

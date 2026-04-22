@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -83,7 +84,7 @@ func RateLimit() gin.HandlerFunc {
 
 func getEnv(key, def string) string {
 	if v := os.Getenv(key); v != "" {
-		return v
+		return strings.TrimSpace(v)
 	}
 	return def
 }
