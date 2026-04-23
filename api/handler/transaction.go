@@ -22,6 +22,7 @@ type CreateTransactionRequest struct {
 	Type        string  `json:"type" binding:"required,oneof=credit debit transfer"`
 	Amount      float64 `json:"amount" binding:"required,gt=0"`
 	Description string  `json:"description"`
+	Idempotency string  `json:"idempotency_key"` // X-Idempotency-Key
 }
 
 type TransactionResponse struct {
@@ -71,6 +72,25 @@ func CreateTransaction(c *gin.Context) {
 		return
 	}
 
+	// ─── Idempotency Check ────────────────────────────────────────────────
+	var idempotencyKey string
+	if req.Idempotency != "" {
+		idempotencyKey = cache.IdempotencyKey(req.UserID, req.Idempotency)
+		var existingTxID string
+		hit, _ := cache.Get(ctx, idempotencyKey, &existingTxID)
+		if hit {
+			metrics.IdempotencyHitsTotal.Inc()
+			c.JSON(http.StatusOK, gin.H{
+				"id":           existingTxID,
+				"status":       "already_processed",
+				"message":      "Duplicate request detected, returning previous transaction ID",
+				"trace_id":     traceID,
+				"idempotent":   true,
+			})
+			return
+		}
+	}
+
 	// Generate transaction ID dan reference
 	txnID := uuid.New().String()
 	refID := "REF-" + time.Now().Format("20060102") + "-" + txnID[:8]
@@ -94,6 +114,11 @@ func CreateTransaction(c *gin.Context) {
 			"trace_id": traceID,
 		})
 		return
+	}
+
+	// Simpan Idempotency Key ke Redis (TTL 24 jam)
+	if idempotencyKey != "" {
+		cache.Set(ctx, idempotencyKey, txnID, 24*time.Hour)
 	}
 
 	// Kirim ke queue untuk async processing

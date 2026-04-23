@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -16,8 +17,8 @@ var Client *redis.Client
 
 func Init() {
 	Client = redis.NewClient(&redis.Options{
-		Addr:         fmt.Sprintf("%s:%s", os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT")),
-		Password:     os.Getenv("REDIS_PASSWORD"),
+		Addr:         fmt.Sprintf("%s:%s", strings.TrimSpace(os.Getenv("REDIS_HOST")), strings.TrimSpace(os.Getenv("REDIS_PORT"))),
+		Password:     strings.TrimSpace(os.Getenv("REDIS_PASSWORD")),
 		DB:           0,
 		PoolSize:     20,
 		MinIdleConns: 5,
@@ -81,6 +82,11 @@ func UserBalanceKey(id string) string {
 	return fmt.Sprintf("user:balance:%s", id)
 }
 
+// IdempotencyKey returns cache key for idempotency checks
+func IdempotencyKey(userID, key string) string {
+	return fmt.Sprintf("idempotency:%s:%s", userID, key)
+}
+
 func Close() {
 	if Client != nil {
 		Client.Close()
@@ -90,7 +96,7 @@ func Close() {
 
 func getEnv(key, def string) string {
 	if v := os.Getenv(key); v != "" {
-		return v
+		return strings.TrimSpace(v)
 	}
 	return def
 }

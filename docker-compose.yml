@@ -15,7 +15,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./migrations/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U username -d peakload_db"] #Gunakan username sesuai dengan yang didefinisikan di environment
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d peakload_db"] #Gunakan username sesuai dengan yang didefinisikan di environment
       interval: 10s
       timeout: 5s
       retries: 5
@@ -100,8 +100,8 @@ services:
       DB_NAME: peakload_db
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
-      DB_MAX_OPEN_CONNS: 25
-      DB_MAX_IDLE_CONNS: 10
+      DB_MAX_OPEN_CONNS: 100
+      DB_MAX_IDLE_CONNS: 50
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ""

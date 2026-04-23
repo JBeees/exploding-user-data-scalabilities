@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -28,7 +29,7 @@ type TransactionMessage struct {
 }
 
 func Init() {
-	url := os.Getenv("RABBITMQ_URL")
+	url := strings.TrimSpace(os.Getenv("RABBITMQ_URL"))
 
 	var err error
 	// Retry connection (RabbitMQ might take a moment)
@@ -159,7 +160,7 @@ func Close() {
 
 func getEnv(key, def string) string {
 	if v := os.Getenv(key); v != "" {
-		return v
+		return strings.TrimSpace(v)
 	}
 	return def
 }

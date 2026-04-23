@@ -1,0 +1,27 @@
+# Force LF line endings for all text files
+# Prevents Windows auto-CRLF from breaking Docker containers
+* text=auto eol=lf
+
+# Shell scripts - MUST be LF (Linux containers)
+*.sh text eol=lf
+
+# Docker files - MUST be LF
+Dockerfile text eol=lf
+docker-compose.yml text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Go source - MUST be LF (compiled in Linux container)
+*.go text eol=lf
+
+# Config files
+*.env text eol=lf
+*.sql text eol=lf
+*.json text eol=lf
+*.js text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.gif binary
+*.webp binary
