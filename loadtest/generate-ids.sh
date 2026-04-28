@@ -7,9 +7,15 @@
 
 set -e
 
+if [ -f ../.env ]; then
+  set -a
+  source ../.env
+  set +a
+fi
+
 OUTPUT_FILE="./user_ids.json"
 DB_CONTAINER="plm_postgres"
-DB_USER="plm_user"
+DB_USER=${POSTGRES_USER:-"user"}
 DB_NAME="peakload_db"
 
 echo "⏳ Mengambil user ID dari database..."
