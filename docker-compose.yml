@@ -91,6 +91,7 @@ services:
       context: ./api
       dockerfile: Dockerfile
     container_name: plm_api
+    image: api-capstone:latest
     restart: unless-stopped
     environment:
       DB_WRITE_HOST: postgres
