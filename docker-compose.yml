@@ -101,8 +101,8 @@ services:
       DB_NAME: peakload_db
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
-      DB_MAX_OPEN_CONNS: 100
-      DB_MAX_IDLE_CONNS: 50
+      DB_MAX_OPEN_CONNS: 200
+      DB_MAX_IDLE_CONNS: 100
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ""
@@ -110,8 +110,8 @@ services:
       RABBITMQ_URL: amqp://${RABBIT_USER}:${RABBIT_PASSWORD}@rabbitmq:5672/
       RABBITMQ_QUEUE_TRANSACTION: transactions_queue
       RABBITMQ_PREFETCH_COUNT: 10
-      RATE_LIMIT_RPS: 500
-      RATE_LIMIT_BURST: 100
+      RATE_LIMIT_RPS: 800
+      RATE_LIMIT_BURST: 300
       CB_MAX_REQUESTS: 5           
       CB_INTERVAL_SECONDS: 60
       CB_TIMEOUT_SECONDS: 30
