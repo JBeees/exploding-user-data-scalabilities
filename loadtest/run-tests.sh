@@ -2,7 +2,6 @@
 # run-tests.sh — Jalankan semua skenario load test secara berurutan
 # Usage: chmod +x run-tests.sh && ./run-tests.sh
 
-set -e
 
 BASE_URL=${BASE_URL:-"http://localhost:8080"}
 OUTPUT_DIR="./results"
