@@ -8,12 +8,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"golang.org/x/sync/singleflight"
 	"peak-load-management/cache"
 	"peak-load-management/db"
 	"peak-load-management/metrics"
 	"peak-load-management/middleware"
 	"peak-load-management/queue"
 )
+
+var transactionSfGroup singleflight.Group
 
 // ─── Models ─────────────────────────────────────────────────────────────────
 
@@ -72,20 +75,37 @@ func CreateTransaction(c *gin.Context) {
 		return
 	}
 
-	// ─── Idempotency Check ────────────────────────────────────────────────
+	// ─── Idempotency Check (Atomic via Redis SetNX) ───────────────────────
 	var idempotencyKey string
 	if req.Idempotency != "" {
 		idempotencyKey = cache.IdempotencyKey(req.UserID, req.Idempotency)
-		var existingTxID string
-		hit, _ := cache.Get(ctx, idempotencyKey, &existingTxID)
-		if hit {
+		
+		// Gunakan SetNX secara atomik untuk mencegah race condition. Set nilai "PROCESSING" dengan TTL 5 menit.
+		acquired, err := cache.Client.SetNX(ctx, idempotencyKey, "PROCESSING", 5*time.Minute).Result()
+		if err != nil {
+			// Fallback jika Redis bermasalah: lanjutkan demi ketersediaan layanan
+		} else if !acquired {
 			metrics.IdempotencyHitsTotal.Inc()
-			c.JSON(http.StatusOK, gin.H{
-				"id":           existingTxID,
-				"status":       "already_processed",
-				"message":      "Duplicate request detected, returning previous transaction ID",
-				"trace_id":     traceID,
-				"idempotent":   true,
+			
+			// Ambil nilai tersimpan untuk membedakan status pemrosesan
+			var existingVal string
+			errGet := cache.Client.Get(ctx, idempotencyKey).Scan(&existingVal)
+			if errGet == nil && existingVal != "PROCESSING" {
+				c.JSON(http.StatusOK, gin.H{
+					"id":           existingVal,
+					"status":       "already_processed",
+					"message":      "Duplicate request detected, returning previous transaction ID",
+					"trace_id":     traceID,
+					"idempotent":   true,
+				})
+				return
+			}
+			
+			// Jika masih bertuliskan "PROCESSING", berarti sedang dikerjakan goroutine lain
+			c.JSON(http.StatusConflict, gin.H{
+				"error":    "duplicate request",
+				"message":  "Transaction is already being processed, please wait.",
+				"trace_id": traceID,
 			})
 			return
 		}
@@ -108,6 +128,10 @@ func CreateTransaction(c *gin.Context) {
 		},
 	)
 	if err != nil {
+		// Hapus kunci idempotensi jika gagal menulis ke DB agar user bisa segera me-retry
+		if idempotencyKey != "" {
+			cache.Delete(ctx, idempotencyKey)
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":    "failed to create transaction",
 			"message":  err.Error(),
@@ -116,10 +140,11 @@ func CreateTransaction(c *gin.Context) {
 		return
 	}
 
-	// Simpan Idempotency Key ke Redis (TTL 24 jam)
+	// Perbarui kunci idempotensi dengan ID transaksi riil (TTL 24 jam)
 	if idempotencyKey != "" {
 		cache.Set(ctx, idempotencyKey, txnID, 24*time.Hour)
 	}
+
 
 	// Kirim ke queue untuk async processing
 	msg := queue.TransactionMessage{
@@ -190,13 +215,15 @@ func GetTransaction(c *gin.Context) {
 
 	metrics.CacheMissesTotal.WithLabelValues("transaction").Inc()
 
-	// 2. Query dari read replica
-	result, err := middleware.ExecuteWithCB(
-		middleware.GetDBCircuitBreaker(),
-		func() (interface{}, error) {
-			return queryTransaction(ctx, txnID)
-		},
-	)
+	// 2. Query dari read replica (Dengan perlindungan Singleflight)
+	result, err, _ := transactionSfGroup.Do(txnID, func() (interface{}, error) {
+		return middleware.ExecuteWithCB(
+			middleware.GetDBCircuitBreaker(),
+			func() (interface{}, error) {
+				return queryTransaction(ctx, txnID)
+			},
+		)
+	})
 	if err != nil {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, gin.H{
@@ -220,6 +247,7 @@ func GetTransaction(c *gin.Context) {
 	c.Header("X-Cache", "MISS")
 	c.JSON(http.StatusOK, txn)
 }
+
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
 

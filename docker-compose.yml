@@ -11,9 +11,13 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
+    command: ["postgres", "-c", "wal_level=replica", "-c", "max_wal_senders=10", "-c", "max_replication_slots=10", "-c", "hot_standby=on"]
     volumes:
+
       - postgres_data:/var/lib/postgresql/data
       - ./migrations/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./migrations/00_init_replication.sh:/docker-entrypoint-initdb.d/00_init_replication.sh
+
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d peakload_db"] #Gunakan username sesuai dengan yang didefinisikan di environment
       interval: 10s
@@ -26,22 +30,41 @@ services:
     image: postgres:15-alpine
     container_name: plm_postgres_replica
     restart: unless-stopped
+    user: postgres
     environment:
       POSTGRES_DB: peakload_db
+
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGPASSWORD: replica_password
     ports:
       - "5433:5432"
     volumes:
       - postgres_replica_data:/var/lib/postgresql/data
-      - ./migrations/init.sql:/docker-entrypoint-initdb.d/init.sql
+    entrypoint:
+      - sh
+      - -c
+      - |
+        if [ ! -s /var/lib/postgresql/data/PG_VERSION ]; then
+          echo "Cloning primary database..."
+          rm -rf /var/lib/postgresql/data/*
+          until pg_basebackup -h postgres -p 5432 -U replica_user -D /var/lib/postgresql/data -Fp -Xs -R; do
+            echo "Waiting for master database and replica_user..."
+            sleep 2
+          done
+          echo "Primary database cloned successfully."
+        fi
+        chmod 0700 /var/lib/postgresql/data
+        exec postgres
+
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U plm_user -d peakload_db"] #Gunakan username sesuai dengan yang didefinisikan di environment
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d peakload_db"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
       - plm_network
+
 
   redis:
     image: redis:7-alpine
@@ -110,7 +133,7 @@ services:
     environment:
       DB_WRITE_HOST: postgres
       DB_WRITE_PORT: 5432
-      DB_READ_HOST: postgres
+      DB_READ_HOST: postgres_replica
       DB_READ_PORT: 5432
       DB_NAME: peakload_db
       DB_USER: ${DB_USER}
@@ -136,12 +159,15 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      postgres_replica:
+        condition: service_healthy
       redis:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     networks:
       - plm_network
+
 
   prometheus:
     image: prom/prometheus:v2.47.0

@@ -7,6 +7,15 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
 
+-- Create replication user for streaming replication
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'replica_user') THEN
+        CREATE ROLE replica_user WITH REPLICATION LOGIN PASSWORD 'replica_password';
+    END IF;
+END $$;
+
+
 -- ─── USERS TABLE ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS users (
     id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

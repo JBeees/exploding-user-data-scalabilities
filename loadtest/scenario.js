@@ -19,7 +19,7 @@ const rateLimitCount   = new Counter('rate_limit_rejected');
 
 // ─── Test Configuration ──────────────────────────────────────────────────────
 const SCENARIO = __ENV.SCENARIO || 'baseline';
-const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
+const BASE_URL = __ENV.TARGET_URL || __ENV.BASE_URL || 'http://localhost:8080';
 
 const scenarios = {
   // Skenario 1: Baseline — traffic normal, ukur performa awal

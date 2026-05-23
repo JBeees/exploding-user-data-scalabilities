@@ -7,11 +7,14 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/sync/singleflight"
 	"peak-load-management/cache"
 	"peak-load-management/db"
 	"peak-load-management/metrics"
 	"peak-load-management/middleware"
 )
+
+var balanceSfGroup singleflight.Group
 
 // ─── Models ─────────────────────────────────────────────────────────────────
 
@@ -22,6 +25,7 @@ type UserBalanceResponse struct {
 	Status    string    `json:"status"`
 	FetchedAt time.Time `json:"fetched_at"`
 }
+
 
 // ─── Handlers ────────────────────────────────────────────────────────────────
 
@@ -57,13 +61,15 @@ func GetUserBalance(c *gin.Context) {
 
 	metrics.CacheMissesTotal.WithLabelValues("user_balance").Inc()
 
-	// 2. Query dari read replica via circuit breaker
-	result, err := middleware.ExecuteWithCB(
-		middleware.GetDBCircuitBreaker(),
-		func() (interface{}, error) {
-			return queryUserBalance(ctx, userID)
-		},
-	)
+	// 2. Query dari read replica via circuit breaker (Dengan perlindungan Singleflight)
+	result, err, _ := balanceSfGroup.Do(userID, func() (interface{}, error) {
+		return middleware.ExecuteWithCB(
+			middleware.GetDBCircuitBreaker(),
+			func() (interface{}, error) {
+				return queryUserBalance(ctx, userID)
+			},
+		)
+	})
 	if err != nil {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, gin.H{
@@ -88,6 +94,7 @@ func GetUserBalance(c *gin.Context) {
 	c.Header("X-Cache", "MISS")
 	c.JSON(http.StatusOK, resp)
 }
+
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
 
